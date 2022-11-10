@@ -436,7 +436,7 @@ class OIDv6(Messages):
             return 404
 
     # Загрузка изображений
-    def _download_images(self, type_data, class_name, class_code, classList, threads = 20, out = True, ):
+    def _download_images(self, type_data, class_name, class_code, threads = 20, out = True):
         """
         Загрузка изображений
 
