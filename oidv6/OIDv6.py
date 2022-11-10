@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
 Массовая загрузка набора данных Open Images Dataset V6
 """
@@ -14,6 +13,7 @@ import numpy as np  # Научные вычисления
 import pandas as pd  # Обработка и анализ данных
 import progressbar
 import cv2  # Алгоритмы компьютерного зрения
+import json
 
 from multiprocessing.dummy import Pool as ThreadPool  # Распараллеливание
 from datetime import datetime  # Взаимодействие со временем
@@ -436,7 +436,7 @@ class OIDv6(Messages):
             return 404
 
     # Загрузка изображений
-    def _download_images(self, type_data, class_name, class_code, threads = 20, out = True):
+    def _download_images(self, type_data, class_name, class_code, classList, threads = 20, out = True, ):
         """
         Загрузка изображений
 
@@ -468,7 +468,7 @@ class OIDv6(Messages):
                     self.end, __class__.__name__ + '.' + self._download_images.__name__
                 ))
 
-            return 400
+            return 400, 0
 
         # Каталог с категорией
         if self._args['multi_classes'] is False:
@@ -487,6 +487,7 @@ class OIDv6(Messages):
             self._labels_list.clear()  # Очистка списка меток
 
         all_images = len(images_list)
+        classList = len(images_list)
 
         # Изображения не найдены
         if all_images == 0:
@@ -494,7 +495,7 @@ class OIDv6(Messages):
             if out is True:
                 print(self._images_not_found.format(self.red, curr_type_multi, self.end))
 
-            return 404
+            return 404, 0
 
         curr_limit = self._args['limit']  # Лимит загрузки изображений
 
@@ -520,15 +521,16 @@ class OIDv6(Messages):
             aws_local_path = os.path.join(download_dir, image_prefix + images_list[i] + self._ext)  # Путь к изображению
 
             # Формирование меток
-            if not self._args['no_labels']:
-                self._labels_list.append(aws_local_path)  # Добавление изображение, для которого нужно загрузить метку
+            # if not self._args['no_labels']:
+            #     #self._labels_list.append(aws_local_path)  # Добавление изображение, для которого нужно загрузить метку
 
             # Изображение не сохранено ранее
-            if Path(aws_local_path).is_file() is False:
-                path = curr_type_multi + '/' + str(images_list[i]) + '.jpg ' + '"' + aws_local_path + '"'
-                command = 'aws s3 --no-sign-request --only-show-errors cp s3://open-images-dataset/' + path
+            # if Path(aws_local_path).is_file() is False:
+            #     #path = curr_type_multi + '/' + str(images_list[i]) + '.jpg ' + '"' + aws_local_path + '"'
+            #     #command = 'aws s3 --no-sign-request --only-show-errors cp s3://open-images-dataset/' + path
+            #     print("S")
 
-                commands.append(command)
+            #     #commands.append(command)
 
         # Загрузка изображений
         if len(commands) > 0:
@@ -565,7 +567,7 @@ class OIDv6(Messages):
             if out is True:
                 print(self._already_downloaded)
 
-        return 200
+        return 200, all_images
 
     # Формирование меток
     def _get_label(self, type_data, class_name, class_code, out = True):
@@ -708,6 +710,8 @@ class OIDv6(Messages):
         metadata_dir = os.path.join(args['dataset'], self._metadata_dir)  # Директория для метаданных
         boxes_dir = os.path.join(args['dataset'], self._boxes)  # Директория для файлов с информацией
 
+        classOverview = dict()
+
         # --------------------------------------------------------------------------------------------------------------
         # Загрузка данных из набора Open Images Dataset V6
         # --------------------------------------------------------------------------------------------------------------
@@ -722,6 +726,7 @@ class OIDv6(Messages):
 
             # Проход по всем классам
             for class_name in args['classes']:
+                classOverview[class_name] = dict()
                 class_name = class_name.replace(' ', '_')  # Название класса с разделителем
                 class_name_del = class_name.replace('_', ' ')  # Название класса с пробелом
 
@@ -764,6 +769,8 @@ class OIDv6(Messages):
 
                     # Проход по выбранным наборам данных
                     for curr_type_data in type_data:
+
+                        
                         # Каталог с категорией
                         if args['multi_classes'] is False:
                             curr_type_multi = (curr_type_data, class_name)
@@ -798,8 +805,10 @@ class OIDv6(Messages):
                         self._curr_class = class_name  # Текущий класс
 
                         # Загрузка изображений
-                        res_download_images = \
+                        res_download_images, num_images = \
                             self._download_images(curr_type_multi[0], curr_type_multi[1], class_code, 20, out)
+
+                        classOverview[class_name][curr_type_data] = num_images
 
                         # Загрузка изображений
                         if res_download_images == 400:
@@ -812,4 +821,10 @@ class OIDv6(Messages):
                                 return False
 
                 Shell.add_line()  # Добавление линии во весь экран
+
+        print(classOverview)
+
+        with open('all.classes.overview.json', 'w')  as f:
+            json.dump(classOverview, f)
+        
         return True
